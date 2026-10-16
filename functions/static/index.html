@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text fingerprint</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main>
+    <h1>Text fingerprint</h1>
+    <p>Choose a small plain-text file (.txt, up to 100 KB). It is deleted after a day.</p>
+    <input type="file" id="file" accept=".txt,text/plain">
+    <button type="button" id="upload">Fingerprint it</button>
+    <p id="status" role="status"></p>
+    <div id="output"></div>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

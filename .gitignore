@@ -1,0 +1,16 @@
+*.swp
+__pycache__
+.pytest_cache
+.venv
+*.egg-info
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+.env
+.env.*
+.vscode/
+cdk.context.json
+
+# Teardown-check baselines hold account IDs: never commit them
+*baseline*.txt

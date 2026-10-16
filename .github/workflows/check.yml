@@ -1,0 +1,52 @@
+# Runs every offline check on each push to main and on pull requests: lint, types, tests,
+# `cdk synth` with cdk-nag, a checkov scan and an account-ID search. It deliberately has
+# no AWS credentials, no secrets and no deploy step.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The workflow only reads the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # Pinned so a new release can't change the result of a check.
+      UV_VERSION: "0.12.23"
+      CDK_CLI_VERSION: "2.1145.0"
+      # Don't wait on an instance-metadata credential lookup that can never succeed here.
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Confirm no AWS credentials are available
+        run: |
+          if aws sts get-caller-identity >/dev/null 2>&1; then
+            echo "AWS credentials are present. These checks must run without them."
+            exit 1
+          fi
+          echo "No AWS credentials, as intended."
+
+      - name: Install uv
+        run: pipx install "uv==${UV_VERSION}"
+
+      - name: Install the CDK CLI
+        run: sudo npm install --global "aws-cdk@${CDK_CLI_VERSION}"
+
+      - name: Install Python 3.14 and the dependencies
+        run: make install
+
+      - name: Run every check
+        run: make check
