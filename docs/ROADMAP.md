@@ -12,7 +12,7 @@ Goal: a small, secure serverless demo that a third party deploys into their own 
 - [x] **5. Teardown:** destroy-safe removal policies; every resource tagged `project=demo-serverless`. *Done when:* a tag query after `cdk destroy` returns nothing.
 - [x] **6. Tests and CI:** unit tests assert the security properties; a post-deploy smoke test; GitHub Actions runs every offline check without AWS credentials.
 - [x] **7. Runnable by someone else:** README (prerequisites; Makefile targets for install, deploy with an account confirmation, smoke, destroy; expected cost; troubleshooting), an architecture diagram, and a LICENSE.
-- [ ] **8. Publish:** create a new, unrelated public repo from one clean commit of the current files (never a fork, branch or visibility change of the development repo); scan it before and after pushing (manual review, gitleaks, `git grep` for account IDs, emails, ARNs), the second time from a fresh clone; then delete the private development repo.
+- [x] **8. Publish:** create a new, unrelated public repo from one clean commit of the current files (never a fork, branch or visibility change of the development repo); scan it before and after pushing (manual review, gitleaks, `git grep` for account IDs, emails, ARNs), the second time from a fresh clone; then delete the private development repo.
 
 ## Rules throughout
 
