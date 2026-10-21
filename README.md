@@ -56,7 +56,7 @@ API share one origin (the API's), so there is no CORS rule beyond the one S3 nee
 ## What you need
 
 **Supported platform: Linux.** It is tested on Ubuntu 24.04 by the CI workflow, whose GitHub-hosted
-`ubuntu-24.04` runner is the reference environment. On Windows, the way to run it is WSL 2 with Ubuntu.
+`ubuntu-24.04` runner is the reference environment.
 
 | Tool            | Version                       | Used for                                    |
 | --------------- | ----------------------------- | ------------------------------------------- |
@@ -126,7 +126,8 @@ make --version && git --version && uv --version && node --version && aws --versi
 ```
 
 What to look for: `aws-cli/2.32.0` or later, and `cdk` printing `2.1145.0` (a newer version
-usually works). Node.js should be an LTS release.
+usually works). Node.js should be an LTS release. If `cdk` later says a newer version is
+available, you don't need to upgrade: the pinned version is the one CI tests.
 
 ## Before you start: use a sandbox
 
@@ -219,6 +220,17 @@ Not logged in yet? Use **`aws login`** (it needs a recent AWS CLI, see "Installi
 credentials that expire on their own, whereas plain `aws configure` saves a long-term access key and
 secret in a file on your disk, which stays valid (and stealable) until you delete it.
 
+If no browser opens (for example over SSH, or on a machine without a desktop browser), the
+command prints the sign-in URL instead. On some Linux systems it appears on a line starting with
+`gio:`. Copy just the URL into any browser and finish signing in there. If the terminal keeps
+waiting, press Ctrl+C and run `aws login --remote`, which gives you a code to paste back instead.
+
+**Using a named profile?** Sign in with `aws login --profile my-profile`, then set it once for the
+shell: `export AWS_PROFILE=my-profile`. The Makefile, CDK and the scripts all use it. Otherwise,
+pass `PROFILE=my-profile` to every `make` command, including `baseline`, `smoke`, `destroy` and
+`teardown-check`. `baseline`, `deploy`, `destroy` and `teardown-check` print the account they will
+use, so check it each time.
+
 If you run `cdk` yourself instead of through `make`, pass the target as CDK context:
 `cdk deploy -c account=<your-12-digit-id> -c region=<region>`. The Makefile does this for you with
 the values it prints, so what you confirm is exactly what CDK uses.
@@ -231,7 +243,9 @@ make bootstrap
 
 CDK needs a small set of supporting resources (the bootstrap stack and bucket) before the first
 deploy. It prints the account and region and asks you to type the account ID to confirm. Skip this
-if the account and region are already bootstrapped.
+if the account and region are already bootstrapped. Not sure?
+`aws cloudformation describe-stacks --stack-name CDKToolkit` succeeds if they are. Run it in the
+region you'll deploy to.
 
 ### 5. Record a baseline (needed for step 9)
 
@@ -268,8 +282,34 @@ takes about a minute. The output includes `SiteUrl`.
 ### 7. Try it
 
 Open the `SiteUrl` in a browser, choose a `.txt` file of up to 100 KB, and press the button. You
-should see the fingerprint within a few seconds. Try a file over 100 KB, a file that isn't text, or
-one containing `<script>alert(1)</script>`: each is rejected or shown harmlessly.
+should see the fingerprint within a few seconds. Then try the cases below. The page checks a
+file's name and size itself before uploading; `make smoke` tests the same limits against AWS
+directly.
+
+| Try                                                                                     | What the page shows                                                                                       |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| a `.txt` file with a few sentences                                                      | **Done.** and the fingerprint. Its SHA-256 matches `sha256sum` of the file.                               |
+| a file over 100 KB                                                                      | *The file must be between 1 byte and 100 KB.*                                                             |
+| a file that isn't `.txt` (the file picker hides these until you switch it to all files) | *Only .txt files are accepted.*                                                                           |
+| a `.txt` file that isn't text, such as random bytes                                     | *The file is not valid UTF-8 text.*                                                                       |
+| a `.txt` file containing `<script>alert(1)</script>`                                    | A normal fingerprint with `script` among the top words, and no pop-up: nothing from the file is ever run. |
+
+<details>
+<summary>Commands to make these files</summary>
+
+```bash
+d=~/fingerprint-test; mkdir -p "$d"   # outside the repository
+printf 'This is a test. It has two sentences!\n' > "$d/ok.txt"
+head -c 150000 /dev/zero | tr '\0' 'a' > "$d/too-big.txt"
+cp "$d/ok.txt" "$d/not-a-txt.png"
+printf '\xff\xfe not text\n' > "$d/not-utf8.txt"
+printf '<script>alert(1)</script> Hello world.\n' > "$d/script.txt"
+sha256sum "$d/ok.txt"
+```
+
+Delete the folder afterwards with `rm -r ~/fingerprint-test`.
+
+</details>
 
 If you open the browser's developer console while you do this, you should see **no CSP or CORS
 errors**. You will see **one `404` for `favicon.ico`**, and that is expected: browsers ask for it
@@ -410,7 +450,7 @@ reasoning is in `docs/DESIGN.md`.
 | Deploy fails creating the API stage with an access-log or log-delivery error | The identity you deploy with needs CloudWatch Logs permissions (such as `logs:CreateLogDelivery`). Use an administrator role in a sandbox account. |
 | `cdk` prints a long JavaScript stack trace                   | It comes from CDK's JavaScript engine underneath the Python code. Read the first line of the error (and the line of `app.py` or the stack file just below it in the Python traceback); the JavaScript frames rarely matter. |
 | `make baseline`, `make teardown-check` or `make access-log-check` stop with "boto3 can't read your AWS credentials" | Your credentials come from `aws login`, which Python can only read with `botocore[crt]`. Run `make install` (it is in `requirements-dev.txt`). |
-| `cdk` complains that the cloud assembly schema version is newer than the CLI supports | Your CDK CLI is older than `aws-cdk-lib`. Update it: `npm install -g aws-cdk@latest`. |
+| `cdk` complains that the cloud assembly schema version is newer than the CLI supports | Your CDK CLI is older than `aws-cdk-lib`. Install the version from "Installing the tools", or newer. |
 | `cdk` prints "N feature flags are not configured"            | A newer `aws-cdk-lib` added a feature flag that `cdk.json` doesn't set yet, so CDK keeps the old behavior. Run `cdk flags --unstable=flags` to see which. Flags can change the generated template, so compare `cdk diff` (or the synthesized template) before and after setting one. `cdk.json` already sets every flag of the pinned version. |
 | `make smoke` fails only at the access-log check              | The stack works but access logs aren't arriving. The output shows the stage's logging settings, the log group's class, KMS key and its own resource policy (which should let `delivery.logs.amazonaws.com` write to it). Delivery can lag, so first run `make access-log-check` again in a minute. Otherwise make sure the identity that deployed has `logs:CreateLogDelivery`, `logs:PutResourcePolicy`, `logs:DescribeResourcePolicies` and `logs:DescribeLogGroups` (an administrator role does), then run `make access-log-check` again. |
 | `make check` fails running `ruff` or `checkov`               | The Makefile runs them through `uvx`, so `uv` must be installed and able to download them (it needs network access the first time). |
